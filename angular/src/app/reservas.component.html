@@ -1,0 +1,93 @@
+<div class="shell dashboard">
+  <section class="reservation-banner" aria-labelledby="titulo-reservas">
+    <img class="banner-photo" src="biblioteca.webp" alt="" width="1150" height="767">
+    <div class="banner-copy">
+      <p class="banner-date"><i class="icon calendar-days" aria-hidden="true"></i><span>{{ fechaLarga(hoy) }}</span></p>
+      <h1 id="titulo-reservas">Mis reservas</h1>
+      <button type="button" class="btn on-green" (click)="abrir('nueva')"><i class="icon plus" aria-hidden="true"></i>Nueva reserva</button>
+    </div>
+  </section>
+
+  @if (aviso(); as mensaje) {
+    <p class="notice dashboard-notice" [class.success]="!mensaje.error" [class.error]="mensaje.error" [attr.role]="mensaje.error ? 'alert' : 'status'"><i class="icon" [class.circle-check]="!mensaje.error" [class.circle-alert]="mensaje.error" aria-hidden="true"></i>{{ mensaje.texto }}</p>
+  }
+
+  <div class="agenda-layout">
+    <section aria-labelledby="titulo-agenda" class="agenda-panel">
+      <div class="section-heading">
+        <h2 id="titulo-agenda">Agenda</h2>
+        @if (!cargando() && !errorLista()) { <span class="count">{{ visibles().length }} {{ visibles().length === 1 ? 'reserva' : 'reservas' }}</span> }
+      </div>
+      @if (filtro()) { <div class="filter"><span>{{ fechaBreve(filtro()) }}</span><button type="button" class="text-button" (click)="filtro.set('')">Quitar filtro</button></div> }
+      @if (errorLista()) {
+        <div class="load-error" role="alert"><p><i class="icon circle-alert" aria-hidden="true"></i>{{ errorLista() }}</p><button class="btn secondary" type="button" (click)="cargar()">Volver a intentar</button></div>
+      }
+      @if (cargando()) {
+        <p class="pending" role="status">Cargando reservas…</p>
+      } @else if (visibles().length) {
+        <ul class="reservation-list">
+          @for (reserva of visibles(); track reserva._id) {
+            <li class="reservation-row">
+              <div class="date-tile" aria-hidden="true"><b>{{ reserva.fecha.slice(-2) }}</b><span>{{ mesCorto(reserva.fecha) }}</span></div>
+              <div class="reservation-detail"><h3>{{ reserva.sala }}</h3><p><span class="reservation-date">{{ fechaBreve(reserva.fecha) }}</span><span class="time"><i class="icon clock" aria-hidden="true"></i>{{ reserva.hora }}</span></p></div>
+              <div class="row-actions"><button type="button" class="table-action" (click)="abrir('editar', reserva)" [attr.aria-label]="'Editar reserva de ' + reserva.sala"><i class="icon pencil" aria-hidden="true"></i>Editar</button><button type="button" class="table-action remove" (click)="abrir('cancelar', reserva)" [attr.aria-label]="'Cancelar reserva de ' + reserva.sala"><i class="icon x" aria-hidden="true"></i>Cancelar</button></div>
+            </li>
+          }
+        </ul>
+      } @else if (!errorLista()) {
+        <div class="empty-area">
+          <span class="empty-icon" aria-hidden="true"><i class="icon calendar-days"></i></span>
+          <h3>{{ filtro() ? 'No tienes reservas ese día' : 'Aún no tienes reservas' }}</h3>
+          <p>Elige la sala, la fecha y la hora de tu próxima sesión.</p>
+          <button type="button" class="text-button" (click)="abrir('nueva')">{{ filtro() ? 'Reservar este día' : 'Reservar una sala' }}</button>
+        </div>
+      }
+    </section>
+
+    <section class="calendar-panel" aria-labelledby="titulo-calendario">
+      <div class="calendar-heading"><h2 id="titulo-calendario">Calendario</h2><button type="button" class="today-button" (click)="irAHoy()">Hoy</button></div>
+      <div class="calendar-month"><strong aria-live="polite">{{ mesVisible() }}</strong>
+        <div class="calendar-nav"><button class="icon-button" type="button" aria-label="Mes anterior" (click)="moverMes(-1)"><i class="icon chevron-left" aria-hidden="true"></i></button><button class="icon-button" type="button" aria-label="Mes siguiente" (click)="moverMes(1)"><i class="icon chevron-right" aria-hidden="true"></i></button></div>
+      </div>
+      <div class="calendar-grid">
+        @for (etiqueta of diasSemana; track etiqueta) { <span class="weekday" aria-hidden="true">{{ etiqueta }}</span> }
+        @for (celda of calendario(); track $index) {
+          @if (celda) { <button class="day" type="button" [class.is-today]="celda.iso === hoy" [class.selected]="celda.iso === filtro()" [attr.aria-current]="celda.iso === hoy ? 'date' : null" [attr.aria-pressed]="celda.iso === filtro()" [attr.aria-label]="fechaLarga(celda.iso) + (celda.cantidad ? ', ' + celda.cantidad + (celda.cantidad === 1 ? ' reserva' : ' reservas') : '')" (click)="filtro.set(filtro() === celda.iso ? '' : celda.iso)">{{ celda.dia }}@if (celda.cantidad) { <span class="calendar-dot" aria-hidden="true"></span> }</button> }
+          @else { <span aria-hidden="true"></span> }
+        }
+      </div>
+      <p class="legend"><span aria-hidden="true"></span>Día con reserva</p>
+    </section>
+  </div>
+</div>
+
+<dialog #dialogo class="reservation-dialog" aria-labelledby="titulo-dialogo" (cancel)="ocupado() && $event.preventDefault()">
+  <div class="dialog-content">
+    <button type="button" class="icon-button dialog-close" (click)="cerrar()" [disabled]="ocupado()" aria-label="Cerrar ventana"><i class="icon x" aria-hidden="true"></i></button>
+    @if (modo() === 'cancelar') {
+      <span class="dialog-mark" aria-hidden="true"><i class="icon calendar-x"></i></span>
+      <h2 id="titulo-dialogo">¿Cancelar reserva?</h2>
+      @if (elegida(); as reserva) { <p class="dialog-intro">Se liberará <strong>{{ reserva.sala }}</strong> el {{ fechaBreve(reserva.fecha) }} a las {{ reserva.hora }}.</p> }
+      @if (errorDialogo()) { <p class="notice error" role="alert">{{ errorDialogo() }}</p> }
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-inicial (click)="cerrar()" [disabled]="ocupado()">Conservar reserva</button><button type="button" class="btn danger" (click)="guardar()" [disabled]="ocupado()">{{ ocupado() ? 'Cancelando…' : 'Sí, cancelar' }}</button></div>
+    } @else {
+      <span class="dialog-mark" aria-hidden="true"><i class="icon" [class.calendar-plus]="modo() === 'nueva'" [class.pencil]="modo() === 'editar'"></i></span>
+      <h2 id="titulo-dialogo">{{ modo() === 'editar' ? 'Editar reserva' : 'Nueva reserva' }}</h2>
+      @if (errorDialogo()) { <p class="notice error" role="alert"><i class="icon circle-alert" aria-hidden="true"></i>{{ errorDialogo() }}</p> }
+      <form #formReserva="ngForm" (ngSubmit)="guardar(formReserva)" novalidate class="fields reservation-form">
+        <div class="field"><label for="sala">Sala de estudio</label>
+          <select id="sala" name="sala" [(ngModel)]="borrador.sala" #campoSala="ngModel" required data-inicial [attr.aria-invalid]="campoSala.invalid && campoSala.touched" aria-describedby="ayuda-sala">
+            <option value="" disabled>Selecciona una sala</option>
+            @if (elegida(); as anterior) { @if (!salas.includes(anterior.sala)) { <option [value]="anterior.sala">{{ anterior.sala }}</option> } }
+            @for (sala of salas; track sala) { <option [value]="sala">{{ sala }}</option> }
+          </select><span id="ayuda-sala" class="field-error">@if (campoSala.invalid && campoSala.touched) { Selecciona la sala que quieres reservar. }</span>
+        </div>
+        <div class="field-pair">
+          <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha" min="0001-01-01" max="9999-12-31" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" [(ngModel)]="borrador.fecha" #campoFecha="ngModel" required [attr.aria-invalid]="campoFecha.invalid && campoFecha.touched" aria-describedby="ayuda-fecha"><span id="ayuda-fecha" class="field-error">@if (campoFecha.invalid && campoFecha.touched) { Elige una fecha válida. }</span></div>
+          <div class="field"><label for="hora">Hora de inicio</label><input type="time" id="hora" name="hora" step="60" [(ngModel)]="borrador.hora" #campoHora="ngModel" required [attr.aria-invalid]="campoHora.invalid && campoHora.touched" aria-describedby="ayuda-hora"><span id="ayuda-hora" class="field-error">@if (campoHora.invalid && campoHora.touched) { Elige una hora de inicio. }</span></div>
+        </div>
+        <div class="dialog-actions"><button type="button" class="btn secondary" (click)="cerrar()" [disabled]="ocupado()">Volver</button><button type="submit" class="btn primary" [disabled]="ocupado()">{{ ocupado() ? 'Guardando…' : modo() === 'editar' ? 'Guardar cambios' : 'Crear reserva' }}</button></div>
+      </form>
+    }
+  </div>
+</dialog>

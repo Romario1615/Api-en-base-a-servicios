@@ -1,0 +1,55 @@
+<div class="shell access-layout">
+  <aside class="library-cover" aria-label="Salas de estudio de la biblioteca">
+    <img src="biblioteca.webp" width="1150" height="767" alt="Estanterías de una biblioteca con luz natural y vistas a un jardín" fetchpriority="high">
+    <div class="cover-caption"><span class="cover-rule" aria-hidden="true"></span><p>Salas de estudio</p></div>
+    <a class="photo-credit" href="https://unsplash.com/photos/TQ8ICns1tgE" target="_blank" rel="noreferrer" aria-label="Fotografía de Fer Troulik en Unsplash, se abre en otra pestaña">Foto de Fer Troulik</a>
+  </aside>
+  <section class="access-panel" aria-labelledby="titulo-acceso">
+    <div class="access-form-wrap">
+      <h1 id="titulo-acceso">{{ texto.titulo }}</h1>
+      @if (!recuperacion()) { <p class="intro">{{ texto.instruccion }}</p> }
+      @if (aviso()) { <p class="notice success" role="status"><i class="icon circle-check" aria-hidden="true"></i>{{ aviso() }}</p> }
+      @if (error()) { <p class="notice error" role="alert"><i class="icon circle-alert" aria-hidden="true"></i>{{ error() }}</p> }
+
+      @if (recuperacion(); as resultado) {
+        <div class="recovery-result" role="status">
+          <p class="notice success"><i class="icon circle-check" aria-hidden="true"></i>{{ resultado.mensaje }}</p>
+          @if (resultado.token; as token) {
+            <p class="form-label">Código temporal</p><code class="recovery-code">{{ token }}</code>
+            <p class="field-hint">Vigencia: {{ resultado.expiraEnMinutos }} minutos.</p>
+            <button type="button" class="btn secondary" (click)="copiar(token)"><i class="icon copy" aria-hidden="true"></i>Copiar código</button>
+            @if (copiado()) { <span class="copy-status">{{ copiado() }}</span> }
+          }
+        </div>
+      } @else {
+        <form #formulario="ngForm" (ngSubmit)="enviar(formulario)" novalidate class="fields">
+          @if (modo === 'registro') {
+            <div class="field"><label for="nombre">Nombre completo</label>
+              <input id="nombre" name="nombre" [(ngModel)]="nombre" #campoNombre="ngModel" required maxlength="100" autocomplete="name" placeholder="Nombre y apellido" [attr.aria-invalid]="campoNombre.invalid && (campoNombre.touched || intento())" aria-describedby="ayuda-nombre">
+              <span id="ayuda-nombre" class="field-error">@if (campoNombre.invalid && (campoNombre.touched || intento())) { Escribe tu nombre completo. }</span>
+            </div>
+          }
+          <div class="field"><label for="correo">Correo electrónico</label>
+            <input id="correo" name="email" type="email" [(ngModel)]="email" #campoCorreo="ngModel" required email autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="nombre@ejemplo.com" [attr.aria-invalid]="campoCorreo.invalid && (campoCorreo.touched || intento())" aria-describedby="ayuda-correo">
+            <span id="ayuda-correo" class="field-error">@if (campoCorreo.invalid && (campoCorreo.touched || intento())) { Ingresa un correo electrónico válido. }</span>
+          </div>
+          @if (modo !== 'recuperar') {
+            <div class="field">
+              <div class="label-line"><label for="clave">Contraseña</label>@if (modo === 'acceso') { <a routerLink="/recuperar" class="minor-link">¿Olvidaste tu contraseña?</a> }</div>
+              <div class="password-input">
+                <input id="clave" name="password" [type]="visible() ? 'text' : 'password'" [(ngModel)]="password" #campoClave="ngModel" required [minlength]="modo === 'registro' ? 8 : 1" [autocomplete]="modo === 'registro' ? 'new-password' : 'current-password'" [attr.aria-invalid]="campoClave.invalid && (campoClave.touched || intento())" aria-describedby="ayuda-clave">
+                <button class="icon-button reveal" type="button" [attr.aria-label]="visible() ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="visible()" (click)="visible.set(!visible())"><i aria-hidden="true" class="icon" [class.eye]="!visible()" [class.eye-off]="visible()"></i></button>
+              </div>
+              <span id="ayuda-clave" [class]="campoClave.invalid && (campoClave.touched || intento()) ? 'field-error' : 'field-hint'">@if (modo === 'registro') { Usa al menos 8 caracteres. } @else if (campoClave.invalid && (campoClave.touched || intento())) { Ingresa tu contraseña. }</span>
+            </div>
+          }
+          <button type="submit" class="btn primary wide" [disabled]="ocupado()">{{ ocupado() ? 'Procesando…' : texto.accion }}</button>
+        </form>
+      }
+      <div class="access-links">
+        @if (modo === 'acceso') { <span>¿Aún no tienes cuenta?</span> <a routerLink="/registro">Crear cuenta</a> }
+        @else { <a routerLink="/acceso"><i class="icon arrow-left" aria-hidden="true"></i>Volver a iniciar sesión</a> }
+      </div>
+    </div>
+  </section>
+</div>

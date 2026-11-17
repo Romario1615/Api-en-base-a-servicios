@@ -1,0 +1,1122 @@
+{
+  "info": {
+    "_postman_id": "042fc335-7af5-49a1-80ec-5ae12efe6d3c",
+    "name": "API Biblioteca",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección para el entorno de pruebas de la biblioteca. Ejecuta las cuatro carpetas en orden con Collection Runner o usa npm test. Cada corrida crea cuentas y una sala de prueba únicas. Las credenciales se generan durante la ejecución."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:4318",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('corrida') || pm.info.requestName === 'Estado de la API') {",
+          "  const id = pm.variables.replaceIn('{{$guid}}');",
+          "  const fecha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);",
+          "  pm.collectionVariables.set('corrida', id);",
+          "  pm.collectionVariables.set('correoA', 'lectora-' + id + '@example.test');",
+          "  pm.collectionVariables.set('correoB', 'lector-' + id + '@example.test');",
+          "  pm.collectionVariables.set('correoSinCuenta', 'sin-cuenta-' + id + '@example.test');",
+          "  pm.collectionVariables.set('clave', 'Biblioteca-' + pm.variables.replaceIn('{{$guid}}'));",
+          "  pm.collectionVariables.set('sala', 'Sala de estudio ' + id.slice(0, 8));",
+          "  pm.collectionVariables.set('salaEquivalente', '  SALA   DE  ESTUDIO ' + id.slice(0, 8).toUpperCase() + '  ');",
+          "  pm.collectionVariables.set('fecha', fecha);",
+          "  ['sesionA', 'sesionB', 'recuperacion', 'usuarioA', 'usuarioB', 'reservaA', 'reservaB'].forEach(k => pm.collectionVariables.unset(k));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Cuenta y reserva",
+      "item": [
+        {
+          "name": "Estado de la API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/salud"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('MongoDB está conectado', () => {",
+                  "  pm.expect(datos.estado).to.equal('ok');",
+                  "  pm.expect(datos.baseDeDatos).to.equal('conectada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar cuenta titular",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Lectora de prueba\",\n  \"email\": \"{{correoA}}\",\n  \"password\": \"{{clave}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un usuario público identificado', () => {",
+                  "  pm.expect(datos.usuario).to.have.all.keys('id', 'nombre', 'email');",
+                  "  pm.expect(datos.usuario.id).to.match(/^[a-f\\d]{24}$/i);",
+                  "  pm.expect(datos.usuario.email).to.equal(pm.collectionVariables.get('correoA'));",
+                  "});",
+                  "pm.collectionVariables.set('usuarioA', datos.usuario.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar el mismo correo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Lectora de prueba\",\n  \"email\": \"{{correoA}}\",\n  \"password\": \"{{clave}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar sin iniciar sesión",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar sesión titular",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{correoA}}\",\n  \"password\": \"{{clave}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un usuario público identificado', () => {",
+                  "  pm.expect(datos.usuario).to.have.all.keys('id', 'nombre', 'email');",
+                  "  pm.expect(datos.usuario.id).to.match(/^[a-f\\d]{24}$/i);",
+                  "  pm.expect(datos.usuario.email).to.equal(pm.collectionVariables.get('correoA'));",
+                  "});",
+                  "pm.test('Emite una credencial de sesión', () => {",
+                  "  pm.expect(typeof datos.token === 'string' && datos.token.split('.').length === 3).to.equal(true);",
+                  "});",
+                  "pm.test('Coincide el usuario registrado', () => {",
+                  "  pm.expect(datos.usuario.id).to.equal(pm.collectionVariables.get('usuarioA'));",
+                  "});",
+                  "pm.collectionVariables.set('sesionA', datos.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear reserva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sala\": \"  {{sala}}  \",\n  \"fecha\": \"{{fecha}}\",\n  \"hora\": \"09:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Coinciden sala, fecha y hora', () => {",
+                  "  pm.expect(datos).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos.sala).to.equal(pm.collectionVariables.get('sala'));",
+                  "  pm.expect(datos.fecha).to.equal(pm.collectionVariables.get('fecha'));",
+                  "  pm.expect(datos.hora).to.equal('09:00');",
+                  "});",
+                  "pm.test('Asigna un identificador de reserva', () => {",
+                  "  pm.expect(datos._id).to.match(/^[a-f\\d]{24}$/i);",
+                  "});",
+                  "pm.collectionVariables.set('reservaA', datos._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar mis reservas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('La lista contiene únicamente la reserva de la cuenta', () => {",
+                  "  pm.expect(datos).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(datos[0]).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos[0]._id).to.equal(pm.collectionVariables.get('reservaA'));",
+                  "  pm.expect(datos[0].hora).to.equal('09:00');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar la hora de mi reserva",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaA}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hora\": \"10:30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Coinciden sala, fecha y hora', () => {",
+                  "  pm.expect(datos).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos.sala).to.equal(pm.collectionVariables.get('sala'));",
+                  "  pm.expect(datos.fecha).to.equal(pm.collectionVariables.get('fecha'));",
+                  "  pm.expect(datos.hora).to.equal('10:30');",
+                  "});",
+                  "pm.test('Conserva el identificador', () => {",
+                  "  pm.expect(datos._id).to.equal(pm.collectionVariables.get('reservaA'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recuperación simulada",
+      "item": [
+        {
+          "name": "Recuperar una cuenta registrada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/recover",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{correoA}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});",
+                  "pm.test('Devuelve un código distinto del acceso con vigencia de diez minutos', () => {",
+                  "  pm.expect(datos.expiraEnMinutos).to.equal(10);",
+                  "  pm.expect(typeof datos.token === 'string' && datos.token.split('.').length === 3).to.equal(true);",
+                  "  pm.expect(datos.token !== pm.collectionVariables.get('sesionA')).to.equal(true);",
+                  "});",
+                  "pm.collectionVariables.set('recuperacion', datos.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usar el código de recuperación en reservas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recuperacion}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recuperar un correo sin cuenta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/recover",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{correoSinCuenta}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Propiedad y disponibilidad",
+      "item": [
+        {
+          "name": "Registrar segunda cuenta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Lector de prueba\",\n  \"email\": \"{{correoB}}\",\n  \"password\": \"{{clave}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un usuario público identificado', () => {",
+                  "  pm.expect(datos.usuario).to.have.all.keys('id', 'nombre', 'email');",
+                  "  pm.expect(datos.usuario.id).to.match(/^[a-f\\d]{24}$/i);",
+                  "  pm.expect(datos.usuario.email).to.equal(pm.collectionVariables.get('correoB'));",
+                  "});",
+                  "pm.test('Las dos cuentas tienen identificadores diferentes', () => {",
+                  "  pm.expect(datos.usuario.id).not.to.equal(pm.collectionVariables.get('usuarioA'));",
+                  "});",
+                  "pm.collectionVariables.set('usuarioB', datos.usuario.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar sesión en la segunda cuenta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{correoB}}\",\n  \"password\": \"{{clave}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un usuario público identificado', () => {",
+                  "  pm.expect(datos.usuario).to.have.all.keys('id', 'nombre', 'email');",
+                  "  pm.expect(datos.usuario.id).to.match(/^[a-f\\d]{24}$/i);",
+                  "  pm.expect(datos.usuario.email).to.equal(pm.collectionVariables.get('correoB'));",
+                  "});",
+                  "pm.test('Emite una credencial de sesión', () => {",
+                  "  pm.expect(typeof datos.token === 'string' && datos.token.split('.').length === 3).to.equal(true);",
+                  "});",
+                  "pm.collectionVariables.set('sesionB', datos.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar desde la segunda cuenta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('La lista de esta cuenta está vacía', () => {",
+                  "  pm.expect(datos).to.deep.equal([]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reservar una sala ocupada con espacios y mayúsculas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sala\": \"{{salaEquivalente}}\",\n  \"fecha\": \"{{fecha}}\",\n  \"hora\": \"10:30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar una reserva ajena",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaA}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hora\": \"11:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar una reserva ajena",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaA}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rechazar una fecha imposible",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sala\": \"{{sala}}\",\n  \"fecha\": \"2027-02-30\",\n  \"hora\": \"12:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rechazar una hora fuera de rango",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sala\": \"{{sala}}\",\n  \"fecha\": \"{{fecha}}\",\n  \"hora\": \"24:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ocupar el horario liberado por la edición",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sala\": \"{{sala}}\",\n  \"fecha\": \"{{fecha}}\",\n  \"hora\": \"09:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Coinciden sala, fecha y hora', () => {",
+                  "  pm.expect(datos).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos.sala).to.equal(pm.collectionVariables.get('sala'));",
+                  "  pm.expect(datos.fecha).to.equal(pm.collectionVariables.get('fecha'));",
+                  "  pm.expect(datos.hora).to.equal('09:00');",
+                  "});",
+                  "pm.collectionVariables.set('reservaB', datos._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mover una reserva a un turno ocupado",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaB}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hora\": \"10:30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar el horario conservado tras el conflicto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('La lista contiene únicamente la reserva de la cuenta', () => {",
+                  "  pm.expect(datos).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(datos[0]).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos[0]._id).to.equal(pm.collectionVariables.get('reservaB'));",
+                  "  pm.expect(datos[0].hora).to.equal('09:00');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Eliminación",
+      "item": [
+        {
+          "name": "Confirmar la reserva de la cuenta titular",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('La lista contiene únicamente la reserva de la cuenta', () => {",
+                  "  pm.expect(datos).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(datos[0]).to.have.all.keys('_id', 'sala', 'fecha', 'hora');",
+                  "  pm.expect(datos[0]._id).to.equal(pm.collectionVariables.get('reservaA'));",
+                  "  pm.expect(datos[0].hora).to.equal('10:30');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar mi reserva",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaA}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar el listado tras eliminar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionA}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('La lista de esta cuenta está vacía', () => {",
+                  "  pm.expect(datos).to.deep.equal([]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar la reserva de la segunda cuenta",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sesionB}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/reservas/{{reservaB}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const datos = pm.response.json();",
+                  "pm.test('Devuelve un mensaje legible', () => {",
+                  "  pm.expect(datos.mensaje).to.be.a('string').and.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

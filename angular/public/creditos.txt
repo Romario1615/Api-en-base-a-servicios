@@ -1,0 +1,7 @@
+Fotografía de biblioteca por Fer Troulik en Unsplash. Se sirve una copia local en formato WebP.
+https://unsplash.com/photos/TQ8ICns1tgE
+https://unsplash.com/license
+
+El logotipo institucional ESPE proviene del material entregado para la práctica.
+Las tipografías Baskervville y Source Sans 3 se distribuyen bajo la licencia SIL Open Font License.
+Las licencias de tipografías e iconos de Lucide se incluyen en la carpeta licencias del sitio compilado.
